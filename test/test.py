@@ -8,7 +8,6 @@ from cocotb.triggers import ClockCycles
 
 @cocotb.test()
 async def test_project(dut):
-    cocotb.pass_test()
     dut._log.info("Start")
 
     # Set the clock period to 10 us (100 KHz)
@@ -26,16 +25,20 @@ async def test_project(dut):
 
     dut._log.info("Test project behavior")
 
-    # Set the input values you want to test
-    dut.ui_in.value = 20
-    dut.uio_in.value = 30
+    # 7-segment decoder pin mapping: ui_in[3:0] = hex digit, ui_in[4] = dp passthrough
+    SEGMENTS = [
+        0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07,
+        0x7F, 0x6F, 0x77, 0x7C, 0x39, 0x5E, 0x79, 0x71,
+    ]
 
-    # Wait for one clock cycle to see the output values
-    await ClockCycles(dut.clk, 1)
+    async def check(digit, dp):
+        dut.ui_in.value = (dp << 4) | digit
+        await ClockCycles(dut.clk, 1)
+        expected = (dp << 7) | SEGMENTS[digit]
+        assert dut.uo_out.value == expected, (
+            f"digit={digit} dp={dp}: expected {expected:#04x}, got {int(dut.uo_out.value):#04x}"
+        )
 
-    # The following assersion is just an example of how to check the output values.
-    # Change it to match the actual expected output of your module:
-    assert dut.uo_out.value == 50
-
-    # Keep testing the module by changing the input values, waiting for
-    # one or more clock cycles, and asserting the expected output values.
+    for digit in range(16):
+        await check(digit, dp=0)
+    await check(digit=5, dp=1)
